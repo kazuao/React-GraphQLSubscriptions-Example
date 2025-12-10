@@ -1,80 +1,18 @@
 import { useState } from 'react'
-import { useMutation, useSubscription } from '@apollo/client'
-import {
-  MESSAGE_ADDED_SUBSCRIPTION,
-  SETTINGS_UPDATED_SUBSCRIPTION,
-  SYSTEM_STATUS_SUBSCRIPTION,
-  SEND_MESSAGE_MUTATION,
-} from '../graphql/operations'
-
-type Message = {
-  id: string
-  text: string
-  createdAt: string
-  author: string
-  channel: string
-  important: boolean
-  tags: string[]
-}
-
-type SystemStatus = {
-  online: boolean
-  load: number
-  updatedAt: string
-}
-
-type Settings = {
-  theme: string
-  lang: string
-  updatedAt: string
-}
+import { useMessages, useSettings, useSystemStatus } from '../hooks/useSubscriptions'
 
 export const MessageList: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [status, setStatus] = useState<SystemStatus | null>(null)
-  const [settings, setSettings] = useState<Settings | null>(null)
+  const { messages, sendMessage, sending } = useMessages()
+  const status = useSystemStatus()
+  const settings = useSettings()
   const [input, setInput] = useState('')
-
-  // メッセージ追加イベントを購読
-  useSubscription(MESSAGE_ADDED_SUBSCRIPTION, {
-    onData: ({ data }) => {
-      const newMessage = data.data?.messageAdded as Message | undefined
-      if (!newMessage) return
-
-      setMessages((prev) => {
-        const exists = prev.some((m) => m.id === newMessage.id)
-        if (exists) return prev
-        return [...prev, newMessage]
-      })
-    },
-  })
-
-  // システムステータスを購読
-  useSubscription(SYSTEM_STATUS_SUBSCRIPTION, {
-    onData: ({ data }) => {
-      const newStatus = data.data?.systemStatusChanged as SystemStatus | undefined
-      if (!newStatus) return
-      setStatus(newStatus)
-    },
-  })
-
-  // 設定値を購読
-  useSubscription(SETTINGS_UPDATED_SUBSCRIPTION, {
-    onData: ({ data }) => {
-      const newSettings = data.data?.settingsUpdated as Settings | undefined
-      if (!newSettings) return
-      setSettings(newSettings)
-    },
-  })
-
-  const [sendMessage, { loading }] = useMutation(SEND_MESSAGE_MUTATION)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim()) return
 
     try {
-      await sendMessage({ variables: { text: input.trim() } })
+      await sendMessage(input)
       setInput('')
     } catch (error) {
       console.error(error)
@@ -117,7 +55,7 @@ export const MessageList: React.FC = () => {
         />
         <button
           type="submit"
-          disabled={loading}
+          disabled={sending}
           style={{
             padding: '0.55rem 1rem',
             borderRadius: 6,
@@ -125,7 +63,7 @@ export const MessageList: React.FC = () => {
             background: '#2563eb',
             color: '#fff',
             cursor: 'pointer',
-            opacity: loading ? 0.7 : 1,
+            opacity: sending ? 0.7 : 1,
           }}
         >
           送信
